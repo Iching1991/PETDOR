@@ -6,12 +6,12 @@ import threading
 # CONFIGURAÇÕES INICIAIS
 # ===========================
 st.set_page_config(
-    page_title="PETdor 🐾",
+    page_title="PETDOR 🐾",
     layout="wide",
     page_icon="🐕"
 )
 
-st.title("🐾 PETdor — Avaliação de Dor em Pets")
+st.title("🐾 PETDOR — Avaliação de Dor em Pets")
 
 # ===========================
 # FUNÇÃO DE AVALIAÇÃO
