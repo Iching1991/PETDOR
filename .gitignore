@@ -1,0 +1,31 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# SQLite database files
+*.db
+
+# Streamlit logs and cache
+.streamlit/
+logs/
+cache/
+
+# Virtual environment
+env/
+venv/
+ENV/
+.venv/
+env.bak/
+venv.bak/
+
+# MacOS system files
+.DS_Store
+
+# PyInstaller
+*.spec
+
+# Test and coverage
+.pytest_cache/
+.coverage
+htmlcov/
