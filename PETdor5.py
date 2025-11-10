@@ -13,7 +13,7 @@ from pyngrok import ngrok
 # CONFIGURAÇÕES INICIAIS
 # ----------------------------
 DB_FILE = "appdor5.db"
-APP_NAME = "PET DOR - appdor5"
+APP_NAME = "PET DOR"
 EMAIL_USER = st.secrets.get("EMAIL_USER", "")
 EMAIL_PASS = st.secrets.get("EMAIL_PASS", "")
 SMTP_SERVER = "smtp.gmail.com"
