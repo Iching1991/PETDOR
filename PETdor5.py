@@ -17,7 +17,8 @@ st.set_page_config(page_title="PET DOR", page_icon="🐾", layout="centered")
 # =====================================
 # BANCO DE DADOS
 # =====================================
-DB_FILE = st.secrets["DB_PATH"]
+DB_FILE = st.secrets.get("DB_PATH", "petdor.db")
+
 
 def conectar():
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
