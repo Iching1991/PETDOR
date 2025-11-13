@@ -4,21 +4,20 @@ import bcrypt
 from datetime import datetime
 from fpdf import FPDF
 import smtplib
+import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import pandas as pd
 import os
 
 # =====================================
 # CONFIGURAÇÃO STREAMLIT
 # =====================================
-st.set_page_config(page_title="PET DOR", page_icon="🐾", layout="centered")
+st.set_page_config(page_title="🐾 PET DOR", page_icon="🐕", layout="centered")
 
 # =====================================
 # BANCO DE DADOS
 # =====================================
 DB_FILE = st.secrets.get("DB_PATH", "petdor.db")
-
 
 def conectar():
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
@@ -54,7 +53,7 @@ conn = conectar()
 cur = conn.cursor()
 
 # =====================================
-# FUNÇÃO DE E-MAIL (GoDaddy)
+# FUNÇÃO DE ENVIO DE E-MAIL (GoDaddy)
 # =====================================
 def enviar_email(destinatario, assunto, corpo):
     try:
@@ -64,29 +63,42 @@ def enviar_email(destinatario, assunto, corpo):
         msg["Subject"] = assunto
         msg.attach(MIMEText(corpo, "html"))
 
-        with smtplib.SMTP_SSL(st.secrets["SMTP_SERVER"], st.secrets["SMTP_PORT"]) as server:
-            server.login(st.secrets["EMAIL_USER"], st.secrets["EMAIL_PASSWORD"])
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL(
+            st.secrets["SMTP_SERVER"],
+            st.secrets["SMTP_PORT"],
+            context=context
+        ) as server:
+            server.login(st.secrets["EMAIL_USER"], st.secrets["EMAIL_PASS"])
             server.send_message(msg)
+
         return True
     except Exception as e:
-        st.error(f"Erro ao enviar e-mail: {e}")
+        st.error(f"⚠️ Erro ao enviar e-mail: {e}")
         return False
 
 # =====================================
-# CADASTRO E LOGIN
+# FUNÇÕES DE USUÁRIO
 # =====================================
 def cadastrar_usuario(nome, email, senha, tipo):
     senha_hash = bcrypt.hashpw(senha.encode(), bcrypt.gensalt())
     try:
-        cur.execute("INSERT INTO usuarios (nome, email, senha, tipo, data_criacao) VALUES (?, ?, ?, ?, ?)",
-                    (nome, email, senha_hash, tipo, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        cur.execute("""
+            INSERT INTO usuarios (nome, email, senha, tipo, data_criacao)
+            VALUES (?, ?, ?, ?, ?)
+        """, (nome, email, senha_hash, tipo, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         conn.commit()
-        enviar_email(email, "🐾 Bem-vindo ao PET DOR!",
-                     f"<h3>Olá {nome}!</h3><p>Seu cadastro no <b>PET DOR</b> foi realizado com sucesso.<br>"
-                     "Agora você pode acessar o sistema e realizar avaliações de dor do seu pet com facilidade.</p>")
-        st.success("Cadastro realizado e e-mail de confirmação enviado!")
+
+        corpo_email = f"""
+        <h3>Olá {nome}!</h3>
+        <p>Seu cadastro no <b>PET DOR</b> foi realizado com sucesso 🐾<br>
+        Agora você pode acessar o sistema e avaliar o bem-estar do seu pet com facilidade.</p>
+        """
+
+        enviar_email(email, "🐾 Bem-vindo ao PET DOR!", corpo_email)
+        st.success("✅ Cadastro realizado e e-mail de confirmação enviado!")
     except sqlite3.IntegrityError:
-        st.warning("E-mail já cadastrado!")
+        st.warning("⚠️ Este e-mail já está cadastrado.")
 
 def autenticar(email, senha):
     cur.execute("SELECT id, nome, senha, tipo FROM usuarios WHERE email = ?", (email,))
@@ -96,7 +108,7 @@ def autenticar(email, senha):
     return None
 
 # =====================================
-# PERGUNTAS ORIGINAIS (CÃES E GATOS)
+# PERGUNTAS PARA AVALIAÇÃO
 # =====================================
 perguntas_caes = [
     "Meu cão tem pouca energia",
@@ -153,14 +165,19 @@ def realizar_avaliacao(usuario_id):
 
     if st.button("Gerar Relatório"):
         cur.execute("""
-            INSERT INTO avaliacoes (usuario_id, pet_nome, especie, respostas, pontuacao_total, pontuacao_maxima, percentual, data_avaliacao)
+            INSERT INTO avaliacoes (
+                usuario_id, pet_nome, especie, respostas,
+                pontuacao_total, pontuacao_maxima, percentual, data_avaliacao
+            )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (usuario_id, pet_nome, especie, str(respostas), total, maximo, percentual, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        """, (usuario_id, pet_nome, especie, str(respostas), total, maximo,
+              percentual, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         conn.commit()
 
         gerar_relatorio_pdf(pet_nome, especie, percentual)
-        st.success("Relatório gerado e salvo com sucesso!")
-        st.download_button("Baixar relatório PDF", open(f"relatorio_{pet_nome}.pdf", "rb"), f"relatorio_{pet_nome}.pdf")
+        st.success("✅ Relatório gerado e salvo com sucesso!")
+        with open(f"relatorio_{pet_nome}.pdf", "rb") as file:
+            st.download_button("⬇️ Baixar Relatório PDF", file, f"relatorio_{pet_nome}.pdf")
 
 # =====================================
 # RELATÓRIO PDF
@@ -193,6 +210,18 @@ def gerar_relatorio_pdf(pet, especie, percentual):
 st.title("🐾 PET DOR")
 st.write("Sistema de Avaliação de Dor Animal")
 
+# Verifica se o usuário está logado
+if "usuario_logado" in st.session_state:
+    usuario = st.session_state["usuario_logado"]
+    st.sidebar.success(f"👋 Olá, {usuario['nome']} ({usuario['tipo']})")
+    if st.sidebar.button("🚪 Sair"):
+        del st.session_state["usuario_logado"]
+        st.experimental_rerun()
+
+    realizar_avaliacao(usuario["id"])
+    st.stop()
+
+# Caso não esteja logado, mostra o menu principal
 menu = st.sidebar.selectbox("Menu", ["Login", "Cadastrar", "Sobre"])
 
 if menu == "Cadastrar":
@@ -201,7 +230,10 @@ if menu == "Cadastrar":
     senha = st.text_input("Senha", type="password")
     tipo = st.selectbox("Tipo de usuário", ["Tutor", "Veterinário", "Clínica"])
     if st.button("Cadastrar"):
-        cadastrar_usuario(nome, email, senha, tipo)
+        if nome and email and senha:
+            cadastrar_usuario(nome, email, senha, tipo)
+        else:
+            st.warning("Preencha todos os campos antes de cadastrar.")
 
 elif menu == "Login":
     email = st.text_input("E-mail")
@@ -209,8 +241,13 @@ elif menu == "Login":
     if st.button("Entrar"):
         user = autenticar(email, senha)
         if user:
+            st.session_state["usuario_logado"] = {
+                "id": user[0],
+                "nome": user[1],
+                "tipo": user[3]
+            }
             st.success(f"Bem-vindo, {user[1]}!")
-            realizar_avaliacao(user[0])
+            st.experimental_rerun()
         else:
             st.error("E-mail ou senha incorretos.")
 
@@ -218,7 +255,7 @@ elif menu == "Sobre":
     st.markdown("""
     ### 🩺 Sobre o PET DOR
     O **PET DOR** é uma ferramenta gratuita que auxilia tutores e veterinários
-    a identificarem sinais de dor em cães e gatos, com base em comportamento e rotina.
+    a identificarem sinais de dor em cães e gatos com base em comportamento e rotina.
 
     Desenvolvido com base em questionários clínicos adaptados (CBPI e FMPI),
     o sistema fornece uma estimativa percentual da presença de dor.
